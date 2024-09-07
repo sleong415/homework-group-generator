@@ -1,0 +1,5 @@
+# ignore anything stored in sheets
+sheets/*
+
+# ignore grading group output
+HomeworkGroups.xlsx
