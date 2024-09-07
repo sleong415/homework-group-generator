@@ -1,5 +1,6 @@
 # ignore anything stored in sheets
 sheets/*
+!sheets/exampleTARoster.txt
 
 # ignore grading group output
-HomeworkGroups.xlsx
+*.xlsx

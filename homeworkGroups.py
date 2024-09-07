@@ -4,7 +4,7 @@ import xlsxwriter
 headerFontSize = 14
 textFontSize = 11
 columnWidth = 36
-numGroups = 13
+numGroups = 8
 
 # global variable to track running group num between campus and online sections
 groupIndex = 0
@@ -173,7 +173,7 @@ def createFrontSheet(workbook, campusTAs, onlineTAs):
         else:
             col += 1
     
-    print("main grouping sheet created")
+    print("main sheet created")
 
 '''
 Creates sheets for each group for one section (campus or online). Each sheet
@@ -247,12 +247,18 @@ def createGroupSheets(workbook, taRoster, numTAs, studentRoster, text):
 
     
 def main():
+    # file variable names
+    campusRosterFileName = 'CampusRoster.xlsx'
+    onlineRosterFileName = 'OnlineRoster.xlsx'
+    taRosterFileName = 'exampleTARoster.txt'
+    outputFileName = 'HomeworkGroups.xlsx'
+
     # get and parse rosters
-    campusRoster = getStudentRosterFromExcel('CampusRoster.xlsx')
-    onlineRoster = getStudentRosterFromExcel('OnlineRoster.xlsx')
+    campusRoster = getStudentRosterFromExcel(campusRosterFileName)
+    onlineRoster = getStudentRosterFromExcel(onlineRosterFileName)
 
     # count TAs given TA roster
-    totalTAs, newTAs, returningTAs = countAndReturnTAs('taRoster.txt')
+    totalTAs, newTAs, returningTAs = countAndReturnTAs(taRosterFileName)
 
     # number of TAs for campus/online section
     numCampusTAs, numOnlineTAs = calculateTADistribution(campusRoster, onlineRoster, totalTAs)
@@ -264,7 +270,7 @@ def main():
     onlineTAs.reverse()
 
     # create sheet
-    workbook = xlsxwriter.Workbook('HomeworkingGroups.xlsx')
+    workbook = xlsxwriter.Workbook(outputFileName)
     createFrontSheet(workbook, campusTAs, onlineTAs)
     createGroupSheets(workbook, campusTAs, numCampusTAs, campusRoster, "campus/hybrid")
     createGroupSheets(workbook, onlineTAs, numOnlineTAs, onlineRoster, "online")
