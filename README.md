@@ -10,7 +10,6 @@
 5. Run `python .\homeworkGrouops.py` in the root directory
 6. View output under root directory
 
-</br>
 NOTE: this script still works if you only have **one section**. Check out "Running Script With 1 Class Section" below.
 
 ## Running Script With 1 Class Section

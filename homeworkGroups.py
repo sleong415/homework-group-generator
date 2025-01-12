@@ -3,41 +3,22 @@ import xlsxwriter
 
 headerFontSize = 14
 textFontSize = 11
-columnWidth = 36
-numGroups = 8
+numGroups = 15
 
-# global variable to track running group num between campus and online sections
-groupIndex = 0
+
 
 '''
 Retrieves students ONLY from excel sheet downloaded from canvas roster.
 Sorts names by first name while leaving names in 'last, first' format.
 '''
 def getStudentRosterFromExcel(sheet):
-    roster = pd.read_excel(f"sheets/{sheet}", usecols=['Name', 'Role'])
-    names = roster[roster['Role'] == 'Student'].get('Name')
-    return sorted(names, key=lambda name: name.split(', ')[1])
+    rosterSheet = pd.read_excel(f"sheets/{sheet}", usecols=['Name', 'Role'])
+    names = rosterSheet[rosterSheet['Role'] == 'Student'].get('Name')
+    roster = sorted(names, key=lambda name: name.split(', ')[1])
 
-'''
-Given both rosters and total number of TAs, calculate TA distribution between
-online and campus section
-'''
-def calculateTADistribution(campusRoster, onlineRoster, totalTAs):
-    campusSize = len(campusRoster)
-    onlineSize = len(onlineRoster)
+    print("num of students:", len(roster))
 
-    print(f"campus size: {campusSize}, online size: {onlineSize}")
-
-    totalStudents = campusSize + onlineSize
-    percentCampus = campusSize / totalStudents
-    percentOnline = onlineSize / totalStudents
-
-    numCampusTAs = round(totalTAs * percentCampus)
-    numOnlineTAs = round(totalTAs * percentOnline)
-
-    print(f"campus tas: {numCampusTAs}, online tas: {numOnlineTAs}")
-
-    return numCampusTAs, numOnlineTAs
+    return roster
 
 '''
 Given TA roster, count total TAs and return 2 arrays (new TAs and returning TAs). 
@@ -64,6 +45,11 @@ def countAndReturnTAs(sheet):
                 returningTAs.append(name)
 
         totalTAs = len(newTAs) + len(returningTAs)
+
+        print("new TAs:", len(newTAs))
+        print("returning TAs:", len(returningTAs))
+        print("total TAs:", totalTAs)
+
         return totalTAs, newTAs, returningTAs
 
 '''
@@ -75,6 +61,8 @@ returningTAs = list of returningTAs
 '''
 def createTAGroups(newTAs, returningTAs):
     groupings = []
+    taCount = 0
+    numTAs = len(newTAs) + len(returningTAs)
 
     for _ in range(numGroups):
         groupings.append([])
@@ -82,59 +70,48 @@ def createTAGroups(newTAs, returningTAs):
     # add new TAs to every group
     for i, ta in enumerate(newTAs):
         groupings[i % numGroups].append(ta)
-
-    groupings.reverse()     # put groups of 2 new TAs at the end
+        taCount += 1
 
     # assign 2 returning TAs to each group
     for i in range(numGroups):
         groupings[i].append(returningTAs.pop())
+        taCount += 1
 
         if len(returningTAs) >= 1:
             groupings[i].append(returningTAs.pop())
+            taCount += 1
+
+    if (len(newTAs) < numGroups):
+        # add one more to group w/ no new TAs
+        for i in range(len(newTAs), numGroups):
+            if len(returningTAs) >= 1:
+                groupings[i].append(returningTAs.pop())
+                taCount += 1
+
+    # place remaining TAs to make groups of 4
+    if (taCount < numTAs):
+        for i in range(numGroups):
+            if len(returningTAs) < 1:
+                break
+            groupings[i].append(returningTAs.pop())
+            taCount += 1
+
+    groupings.reverse()     # put groups of 4 at the end
+
+    if (taCount != numTAs):
+        raise Exception("Unsuccessful in evenly/correctly distributing TAs into groups")
 
     return groupings
 
 '''
-Separate TA groups into campus/online groups given required numbers
-for each section.
-
-numCampusTAs = number of TAs distributed for campus section
-numOnlineTAs = number of TAs distribruted for online section
-'''
-def separateGroups(groups, numCampusTAs, numOnlineTAs):
-    campusGroup = []
-    onlineGroup = []
-    campusCount = 0
-    onlineCount = 0
-
-    # reverse list so groups of 3 are pulled first
-    for group in groups[::-1]:
-        groupSize = len(group)
-
-        if onlineCount + groupSize <= numOnlineTAs:
-            onlineGroup.append(group)
-            onlineCount += groupSize
-        else:
-            campusGroup.append(group)
-            campusCount += groupSize
-
-    if campusCount != numCampusTAs or onlineCount != numOnlineTAs:
-        errorMsg = f"The groups cannot be evenly distributed to match the required counts. Actual campus tas: {campusCount}. Actual online tas: {onlineCount}"
-        raise ValueError(errorMsg)
-    
-    return campusGroup, onlineGroup
-
-'''
 Creates first sheet with all TA groups displayed.
-
-campusTAs = list of campusTA groups
-onlineTAs = list of onlineTA groups
 '''
-def createFrontSheet(workbook, campusTAs, onlineTAs):
+def createFrontSheet(workbook, taList):
     center = workbook.add_format({
         'align': 'center',
         'font_size': headerFontSize,
     })
+
     boldCenter = workbook.add_format({
         'bold': True,
         'align': 'center',
@@ -142,9 +119,10 @@ def createFrontSheet(workbook, campusTAs, onlineTAs):
     })
 
     groupingSheet = workbook.add_worksheet("Groups")
-    groupingSheet.set_column('B:Z', 26)
+    groupingSheet.set_column('B:G', 26)
 
     groupingSheet.write(1, 0, "Groups:", boldCenter)
+    groupingSheet.set_column('A:A', 10)
 
     row = 1
     col = 1
@@ -157,14 +135,9 @@ def createFrontSheet(workbook, campusTAs, onlineTAs):
         groupingSheet.write(currRow, col, i, boldCenter)
 
         # writes TA names
-        if (i-1 < len(campusTAs)):
-            for ta in campusTAs[i-1]:
-                groupingSheet.write(currRow + 1, col, ta, center)
-                currRow += 1
-        else:
-            for ta in onlineTAs[i-1 - len(campusTAs)]:
-                groupingSheet.write(currRow + 1, col, ta, center)
-                currRow += 1
+        for ta in taList[i-1]:
+            groupingSheet.write(currRow + 1, col, ta, center)
+            currRow += 1
 
         # new row for every 6 groups
         if (i % 6 == 0):
@@ -176,12 +149,9 @@ def createFrontSheet(workbook, campusTAs, onlineTAs):
     print("main sheet created")
 
 '''
-Creates sheets for each group for one section (campus or online). Each sheet
-has TA names and their assigned students.
+Creates sheets for each group. Each sheet has TA names and their assigned students.
 '''
-def createGroupSheets(workbook, taRoster, numTAs, studentRoster, text):
-    global groupIndex
-
+def createGroupSheets(workbook, taRoster, numTAs, studentRoster):
     boldCenter = workbook.add_format({
         'bold': True,
         'align': 'center',
@@ -193,9 +163,12 @@ def createGroupSheets(workbook, taRoster, numTAs, studentRoster, text):
         'font_size': textFontSize,
     })
 
+    groupIndex = 0
     studentIndex = 0
     baseSize = len(studentRoster) // numTAs
     remainder = len(studentRoster) % numTAs
+
+    print(f"about {baseSize} students per TA")
 
     for i in range(len(taRoster)):
         # groupExtra ensures that remainder students are distirbuted evenly per GROUP of 3-4 TAs not per TA
@@ -208,15 +181,9 @@ def createGroupSheets(workbook, taRoster, numTAs, studentRoster, text):
 
         groupSheet = workbook.add_worksheet(f"Group{groupIndex + 1}")
 
-        if (len(taRoster[i]) == 3):
-            groupSheet.set_column('A:C', columnWidth)
-            groupSheet.set_column('E:E', 40)
-            groupSheet.write(1, 4, f"ALL {text.upper()} STUDENTS", boldCenter)
-        else:
-            groupSheet.set_column('A:D', columnWidth)
-            groupSheet.set_column('F:F', 40)
-            groupSheet.write(1, 5, f"ALL {text.upper()} STUDENTS", boldCenter)
-
+        column_range = 'A:C' if len(taRoster[i]) == 3 else 'A:D'
+        groupSheet.set_column(column_range, 32)
+       
         col = 0
         for ta in taRoster[i]:
             row = 0
@@ -243,37 +210,27 @@ def createGroupSheets(workbook, taRoster, numTAs, studentRoster, text):
 
         groupIndex += 1
 
-    print(f"{text} group sheet created")
+    print("group sheets created")
 
-    
 def main():
     # file variable names
-    campusRosterFileName = 'CampusRoster.xlsx'
-    onlineRosterFileName = 'OnlineRoster.xlsx'
-    taRosterFileName = 'exampleTARoster.txt'
+    rosterFileName = 'Roster.xlsx'
+    taRosterFileName = 'taRoster.txt'
     outputFileName = 'HomeworkGroups.xlsx'
 
     # get and parse rosters
-    campusRoster = getStudentRosterFromExcel(campusRosterFileName)
-    onlineRoster = getStudentRosterFromExcel(onlineRosterFileName)
+    roster = getStudentRosterFromExcel(rosterFileName)
 
     # count TAs given TA roster
     totalTAs, newTAs, returningTAs = countAndReturnTAs(taRosterFileName)
 
-    # number of TAs for campus/online section
-    numCampusTAs, numOnlineTAs = calculateTADistribution(campusRoster, onlineRoster, totalTAs)
-
     # create TA groups
     groupingList = createTAGroups(newTAs, returningTAs)
-    campusTAs, onlineTAs = separateGroups(groupingList, numCampusTAs, numOnlineTAs)
-    campusTAs.reverse()
-    onlineTAs.reverse()
 
     # create sheet
     workbook = xlsxwriter.Workbook(outputFileName)
-    createFrontSheet(workbook, campusTAs, onlineTAs)
-    createGroupSheets(workbook, campusTAs, numCampusTAs, campusRoster, "campus/hybrid")
-    createGroupSheets(workbook, onlineTAs, numOnlineTAs, onlineRoster, "online")
+    createFrontSheet(workbook, groupingList)
+    createGroupSheets(workbook, groupingList, totalTAs, roster)
     workbook.close()
 
 if __name__ == "__main__":
