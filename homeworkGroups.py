@@ -5,7 +5,8 @@ headerFontSize = 14
 textFontSize = 11
 numGroups = 15
 
-
+colorList = ['#e6b8af', '#f4cccc', '#fce5cd', '#fff2cc', '#d9ead3', '#d0e0e3', '#c9daf8', '#cfe2f3', '#d9d2e9', '#ead1dc', '#efefef']
+bold_center_formats = []
 
 '''
 Retrieves students ONLY from excel sheet downloaded from canvas roster.
@@ -103,27 +104,38 @@ def createTAGroups(newTAs, returningTAs):
 
     return groupings
 
+def set_bold_center_bg_color(workbook, color):
+    return workbook.add_format({
+            'bold': True,
+            'align': 'center',
+            'font_size': headerFontSize,
+            'bg_color': color
+        })
+
+def set_center_bg_color(workbook, color):
+    return workbook.add_format({
+            'align': 'center',
+            'font_size': headerFontSize,
+            'bg_color': color
+        })
+
 '''
 Creates first sheet with all TA groups displayed.
 '''
 def createFrontSheet(workbook, taList):
-    center = workbook.add_format({
-        'align': 'center',
-        'font_size': headerFontSize,
-    })
-
     boldCenter = workbook.add_format({
         'bold': True,
         'align': 'center',
-        'font_size': headerFontSize,
+        'font_size': headerFontSize
     })
-
+      
     groupingSheet = workbook.add_worksheet("Groups")
     groupingSheet.set_column('B:G', 26)
 
     groupingSheet.write(1, 0, "Groups:", boldCenter)
     groupingSheet.set_column('A:A', 10)
 
+    global bold_center_formats
     row = 1
     col = 1
 
@@ -131,13 +143,22 @@ def createFrontSheet(workbook, taList):
     for i in range(1, numGroups + 1):
         currRow = row
 
+        group_bg_color = colorList[(i-1) % len(colorList)]
+        group_num_format = set_bold_center_bg_color(workbook, group_bg_color)
+        bold_center_formats.append(group_num_format)
+
+        ta_name_format = set_center_bg_color(workbook, group_bg_color)
+
         # number header
-        groupingSheet.write(currRow, col, i, boldCenter)
+        groupingSheet.write(currRow, col, i, group_num_format)
 
         # writes TA names
         for ta in taList[i-1]:
-            groupingSheet.write(currRow + 1, col, ta, center)
             currRow += 1
+            groupingSheet.write(currRow, col, ta, ta_name_format)
+
+        if (len(taList[i-1]) == 3):
+            groupingSheet.write(currRow + 1, col, None, ta_name_format)
 
         # new row for every 6 groups
         if (i % 6 == 0):
@@ -152,12 +173,6 @@ def createFrontSheet(workbook, taList):
 Creates sheets for each group. Each sheet has TA names and their assigned students.
 '''
 def createGroupSheets(workbook, taRoster, numTAs, studentRoster):
-    boldCenter = workbook.add_format({
-        'bold': True,
-        'align': 'center',
-        'font_size': headerFontSize,
-    })
-
     center = workbook.add_format({
         'align': 'center',
         'font_size': textFontSize,
@@ -182,14 +197,15 @@ def createGroupSheets(workbook, taRoster, numTAs, studentRoster):
         groupSheet = workbook.add_worksheet(f"Group{groupIndex + 1}")
 
         column_range = 'A:C' if len(taRoster[i]) == 3 else 'A:D'
-        groupSheet.set_column(column_range, 32)
+        groupSheet.set_column(column_range, 36)
        
+        global bold_center_formats
         col = 0
         for ta in taRoster[i]:
             row = 0
 
             # write ta name
-            groupSheet.write(row, col, ta, boldCenter)
+            groupSheet.write(row, col, ta, bold_center_formats[i])
             row += 1
 
             # disitrbute 'remainder' students to each group rather than per TA for more even disitrbution
